@@ -24,8 +24,8 @@ void __am_cte_init() {
 
 void rt_hw_context_switch_to(rt_ubase_t to) {
   // OldLiu Modify Start
-  assert(0);
-
+  // assert(0);
+  yield();
   // OldLiu Modify End
 }
 
@@ -43,7 +43,8 @@ rt_uint8_t *rt_hw_stack_init(void *tentry, void *parameter, rt_uint8_t *stack_ad
   assert(current);
   rt_uint8_t *my_stack_addr = (rt_uint8_t *)((uintptr_t)stack_addr & ~(sizeof(uintptr_t) - 1));
 
-  pcb[0].cp = kcontext((Area) { my_stack_addr, my_stack_addr + STACK_SIZE}, tentry, parameter);
+  // pcb[0].cp = kcontext((Area) { my_stack_addr, my_stack_addr + STACK_SIZE}, tentry, parameter);
+  pcb[0].cp = kcontext((Area) { my_stack_addr - STACK_SIZE, my_stack_addr}, tentry, parameter);
   // yield();
   // panic("Should not reach here!");
   return (rt_uint8_t *)pcb[0].cp;
