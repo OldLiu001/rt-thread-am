@@ -18,12 +18,16 @@ bool OldLiu_switch_from_need_save = false;
 static Context* ev_handler(Event e, Context *c) {
   switch (e.event) {
     // OldLiu Modify Start
+    case EVENT_IRQ_TIMER:
+      return c;
     case EVENT_YIELD:
-      printf("EVENT_YIELD\n");
-      printf("i want switch to %u\n", OldLiu_switch_to);
-      printf("i want switch to %u\n", *((uint64_t *)OldLiu_switch_to));
-      if (OldLiu_switch_from_need_save)        
+      // printf("EVENT_YIELD\n");
+      // printf("i want switch to %u\n", OldLiu_switch_to);
+      // printf("i want switch to %u\n", *((uint64_t *)OldLiu_switch_to));
+      if (OldLiu_switch_from_need_save) {
+        OldLiu_switch_from_need_save = false;
         (*((uintptr_t *)OldLiu_switch_from_ptr)) = (uintptr_t)c;
+      }
       return (Context *)(*((uintptr_t *)OldLiu_switch_to));
     break;
     // OldLiu Modify End
@@ -59,17 +63,37 @@ void rt_hw_context_switch_interrupt(void *context, rt_ubase_t from, rt_ubase_t t
   assert(0);
 }
 
+// OldLiu Modify Start
+struct OldLiu_tentry_and_texit_args {
+  void *parameter;
+  void (*tentry)(void *);
+  void (*texit)(void);
+};
+void OldLiu_tentry_and_texit( void * args_void ) {
+  struct OldLiu_tentry_and_texit_args *args = (struct OldLiu_tentry_and_texit_args *)args_void;
+  args->tentry(args->parameter);
+  // printf("hi\n");
+  args->texit();
+}
+// OldLiu Modify End
+
 rt_uint8_t *rt_hw_stack_init(void *tentry, void *parameter, rt_uint8_t *stack_addr, void *texit) {
   // OldLiu Modify Start
   // assert(0);
   assert(current);
   rt_uint8_t *my_stack_addr = (rt_uint8_t *)((uintptr_t)stack_addr & ~(sizeof(uintptr_t) - 1));
 
-  // pcb[0].cp = kcontext((Area) { my_stack_addr, my_stack_addr + STACK_SIZE}, tentry, parameter);
-  pcb[0].cp = kcontext((Area) { my_stack_addr - STACK_SIZE, my_stack_addr}, tentry, parameter);
+  my_stack_addr -= sizeof(struct OldLiu_tentry_and_texit_args);
+  struct OldLiu_tentry_and_texit_args *args = (struct OldLiu_tentry_and_texit_args *)my_stack_addr;
+  args->parameter = parameter;
+  args->tentry = tentry;
+  args->texit = texit;
+
+  // pcb[0].cp = kcontext((Area) { my_stack_addr - STACK_SIZE, my_stack_addr}, tentry, parameter);
+  pcb[0].cp = kcontext((Area) { my_stack_addr - STACK_SIZE, my_stack_addr}, OldLiu_tentry_and_texit, args);
   // yield();
   // panic("Should not reach here!")
-  printf("cp:%u\n", (uint64_t)pcb[0].cp);
+  // printf("cp:%u\n", (uint64_t)pcb[0].cp);
 
   return (rt_uint8_t *)pcb[0].cp;
   // OldLiu Modify End
